@@ -2,11 +2,21 @@ const bcrypt = require('bcryptjs');
 const { PrismaClient } = require("@prisma/client");
 const prisma = new PrismaClient();
 const jwt = require('jsonwebtoken');
+const { createClient } = require('@supabase/supabase-js');
+
+// Initialize Supabase client (only if environment variables are set)
+let supabase = null;
+if (process.env.SUPABASE_URL && (process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.SUPABASE_ANON_KEY)) {
+  supabase = createClient(
+    process.env.SUPABASE_URL,
+    process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.SUPABASE_ANON_KEY
+  );
+}
 
 exports.signup = async (req , res , next) => {
     try {
-        const { fullName, fullname, email, username, phone, password, confirmPassword } = req.body;
-        const resolvedFullName = fullName || fullname;
+        const { fullname, email, username, phone, password, confirmPassword } = req.body;
+        
     
         const existingUser = await prisma.user.findFirst({
           where: {
@@ -25,15 +35,56 @@ exports.signup = async (req , res , next) => {
           });
         }
 
+        let avatarUrl = null;
+    
+        // Handle avatar upload if provided
+        if (req.file && supabase) {
+          try {
+            // Generate unique filename
+            const fileExt = req.file.originalname.split('.').pop();
+            const fileName = `${Date.now()}_${Math.random().toString(36).substring(2, 15)}.${fileExt}`;
+            const filePath = `avatar/${fileName}`;
+      
+            // Upload to Supabase storage
+            const { data, error } = await supabase.storage
+              .from('avatar')  // Bucket name
+              .upload(filePath, req.file.buffer, {
+                contentType: req.file.mimetype,
+                upsert: false
+              });
+      
+            if (error) {
+              console.error('Error uploading avatar:', error);
+              // Continue without avatar if upload fails
+            } else {
+              // Get public URL
+              const { data: { publicUrl } } = supabase.storage
+                .from('avatar')
+                .getPublicUrl(filePath);
+              
+              avatarUrl = publicUrl;
+            }
+          } catch (uploadError) {
+            console.error('Avatar upload error:', uploadError);
+            // Continue without avatar if upload fails
+          }
+        } else if (req.file && !supabase) {
+          console.log('Supabase not configured - avatar upload skipped');
+          console.log('SUPABASE_URL:', process.env.SUPABASE_URL);
+          console.log('SUPABASE_ANON_KEY:', process.env.SUPABASE_ANON_KEY ? 'Set' : 'Not set');
+        }
+
         const hashedPassword = await bcrypt.hash(password, 12);
     
         const newUser = await prisma.user.create({
             data: {
-                fullname: resolvedFullName,
+                fullname ,
                 email,
                 username,
                 phone,
-                password : hashedPassword
+                password : hashedPassword,
+                avatar: avatarUrl,
+                updatedAt: new Date()
             }
         })
         newUser.password = undefined;
