@@ -9,13 +9,69 @@ datasource db {
 }
 
 model User {
+  id                String    @id @default(cuid())
+  fullname          String
+  username          String    @unique
+  email             String    @unique
+  phone             String    @unique
+  password          String
+  createdAt         DateTime  @default(now())
+  updatedAt         DateTime  @updatedAt
+  avatar            String?
+
+  sentMessages      Message[] @relation("SentMessages")
+  receivedMessages  Message[] @relation("ReceivedMessages")
+  initiatedCalls    Call[]    @relation("InitiatedCalls")
+  receivedCalls     Call[]    @relation("ReceivedCalls")
+  groupMembers      GroupMember[]
+}
+
+model Message {
+  id           String   @id @default(cuid())
+  content      String?
+  mediaUrl     String?
+  createdAt    DateTime @default(now()) 
+  senderId     String
+  sender       User     @relation("SentMessages", fields: [senderId], references: [id])
+  recipientId  String?
+  recipient    User?     @relation("ReceivedMessages", fields: [recipientId], references: [id])
+  groupId      String?
+  group        Group?   @relation(fields: [groupId], references: [id], onDelete: Cascade)
+  isRead       Boolean  @default(false)
+}
+
+model Group {
+  id         String         @id @default(cuid())
+  name       String
+  createdAt  DateTime        @default(now())
+  updatedAt  DateTime        @updatedAt
+  messages   Message[]
+  members    GroupMember[]
+}
+
+model GroupMember {
   id        String   @id @default(cuid())
-  fullname  String
-  username  String
-  email     String   @unique
-  phone     String   @unique
-  password  String
-  createdAt DateTime @default(now())
-  updatedAt DateTime
-  avatar    String?
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  groupId   String
+  group     Group    @relation(fields: [groupId], references: [id], onDelete: Cascade)
+  joinedAt  DateTime @default(now())
+
+  @@unique([userId, groupId])
+}
+
+model Call {
+  id           String    @id @default(cuid())
+  type         CallType
+  startedAt    DateTime  @default(now())
+  endedAt      DateTime?
+  callerId     String
+  caller       User      @relation("InitiatedCalls", fields: [callerId], references: [id])
+  recipientId  String
+  recipient    User      @relation("ReceivedCalls", fields: [recipientId], references: [id])
+}
+
+enum CallType {
+  VIDEO
+  AUDIO
 }
