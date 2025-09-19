@@ -13,6 +13,14 @@ if (process.env.SUPABASE_URL && (process.env.SUPABASE_SERVICE_ROLE_KEY || proces
   );
 }
 
+const changedPasswordAfter = (passwordChangedAt , jwtTimestamp) => {
+   if (passwordChangedAt) {
+    const changedTimestamp = parseInt(passwordChangedAt.getTime() / 1000, 10);
+    return jwtTimestamp < changedTimestamp;
+  }
+  return false;
+}
+
 exports.signup = async (req , res , next) => {
     try {
         const { fullname, email, username, phone, password, confirmPassword } = req.body;
@@ -183,6 +191,13 @@ exports.protect = async (req, res, next) => {
                 status: "fail",
                 message: "The user belonging to this token does no longer exist"
             });
+        }
+
+        if (currentUser.passwordChangedAt && changedPasswordAfter(currentUser.passwordChangedAt, decoded.iat)) {
+          return res.status(401).json({
+              status: "fail",
+              message: "User recently changed password! Please login again"
+          });
         }
 
         // Grant access to protected route

@@ -19,6 +19,8 @@ model User {
   updatedAt         DateTime  @updatedAt
   avatar            String?
 
+  passwordChangedAt  DateTime?
+
   sentMessages      Message[] @relation("SentMessages")
   receivedMessages  Message[] @relation("ReceivedMessages")
   initiatedCalls    Call[]    @relation("InitiatedCalls")
