@@ -6,7 +6,16 @@ const prisma = new PrismaClient();
 const app = require("./app") ;
 const http = require('http');
 const { Server } = require('socket.io');
-const { handleNewMessage } = require('./webhooks/messageWebhook');
+const { createClient } = require('@supabase/supabase-js');
+
+// Initialize Supabase client (only if environment variables are set)
+let supabase = null;
+if (process.env.SUPABASE_URL && (process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.SUPABASE_ANON_KEY)) {
+  supabase = createClient(
+    process.env.SUPABASE_URL,
+    process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.SUPABASE_ANON_KEY
+  );
+}
 
 const server = http.createServer(app);
 const io = new Server(server, {

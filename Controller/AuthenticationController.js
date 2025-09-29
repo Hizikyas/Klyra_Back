@@ -2,16 +2,7 @@ const bcrypt = require('bcryptjs');
 const { PrismaClient } = require("@prisma/client");
 const prisma = new PrismaClient();
 const jwt = require('jsonwebtoken');
-const { createClient } = require('@supabase/supabase-js');
 
-// Initialize Supabase client (only if environment variables are set)
-let supabase = null;
-if (process.env.SUPABASE_URL && (process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.SUPABASE_ANON_KEY)) {
-  supabase = createClient(
-    process.env.SUPABASE_URL,
-    process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.SUPABASE_ANON_KEY
-  );
-}
 
 const changedPasswordAfter = (passwordChangedAt , jwtTimestamp) => {
    if (passwordChangedAt) {
