@@ -2,21 +2,30 @@ const { PrismaClient } = require("@prisma/client");
 const prisma = new PrismaClient();
 const AppFeatures = require("../utils/AppFeatures")
 
-exports.getAllUser = async (req , res , next) => {
-      const features = new AppFeatures(prisma.user.find().select(select).populate(populateOption) , req.query)
-  .filter()
-  .sort()
-  .limitFields()
-  .pagination() ;
+exports.getAllUser = async (req, res, next) => {
+  try {
+    const features = new AppFeatures(req.query)
+      .filter()
+      .sort()
+      .limitFields()
+      .pagination()
+      .build();
 
- const users = await features.query
-   res.status(200).json({
-       status : "success" , 
-       result : users.length ,
-       users
-   })
+    // Fetch users with Prisma
+    const users = await prisma.user.findMany(features);
 
-}
+    res.status(200).json({
+      status: "success",
+      result: users.length,
+      users,
+    });
+  } catch (error) {
+    res.status(400).json({
+      status: "fail",
+      message: error.message,
+    });
+  }
+};
 
 exports.getUser = async (req, res, next) => {
     try {
@@ -40,6 +49,7 @@ exports.getUser = async (req, res, next) => {
         });
     }
 };
+
 exports.updateUser = async (req, res, next) => {
     const allowedFields = [
         "fullname",

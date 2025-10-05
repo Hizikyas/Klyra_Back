@@ -47,7 +47,7 @@ class AppFeatures {
       });
       this.prismaQuery.orderBy = sortFields;
     } else {
-      this.prismaQuery.orderBy = [{ created_at: 'desc' }];
+      this.prismaQuery.orderBy = [{ createdAt: 'desc' }];
     }
     return this;
   }
