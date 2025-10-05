@@ -30,7 +30,7 @@ exports.getAllUser = async (req, res, next) => {
 exports.getUser = async (req, res, next) => {
     try {
         const user = await prisma.user.findUnique({
-            where: { id: parseInt(req.params.id) },
+            where: {id : req.params.id },
         });
         if (!user) {
             return res.status(404).json({
@@ -68,7 +68,7 @@ exports.updateUser = async (req, res, next) => {
 
     try {
         const user = await prisma.user.update({
-            where: { id: parseInt(req.params.id) },
+            where: { id: req.params.id },
             data: updateData
         });
         res.status(200).json({
