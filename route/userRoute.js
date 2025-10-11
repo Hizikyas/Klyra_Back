@@ -1,6 +1,6 @@
 const express = require("express") ;
 const authController = require("../Controller/AuthenticationController")
-const UserController = require("../Controller/usercontroller")
+const UserController = require("../Controller/userController")
 const upload = require("../Utils/uploadImg")
 const Router = express.Router() ;
 
