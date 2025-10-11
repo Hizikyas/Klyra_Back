@@ -3,14 +3,16 @@ const prisma = new PrismaClient();
 
 async function sendMessage(req, res) {
   const { content, mediaUrl, recipientId, groupId } = req.body;
-  const senderId = req.user.id;  // Assuming user is authenticated and req.user is set from middleware
+  const senderId = req.user.id; // Assuming req.user is set by protect middleware
 
   if (!content && !mediaUrl) {
     return res.status(400).json({ error: 'Message must have content or media' });
   }
+
   if (recipientId && groupId) {
     return res.status(400).json({ error: 'Specify either recipientId for one-to-one or groupId for group chat' });
   }
+
   if (!recipientId && !groupId) {
     return res.status(400).json({ error: 'Specify recipientId or groupId' });
   }
@@ -25,17 +27,10 @@ async function sendMessage(req, res) {
         groupId: groupId || null,
       },
     });
-    // The creation will trigger Supabase webhook, which broadcasts via WebSocket
-    res.status(201).json({ 
-        status : "success" ,
-        message
-     });
+    res.status(201).json({ message });
   } catch (error) {
     console.error('Error sending message:', error);
-    res.status(500).json({
-        status : "failed" ,
-         error: 'Failed to send message' 
-        });
+    res.status(500).json({ error: 'Failed to send message' });
   }
 }
 
@@ -46,6 +41,7 @@ async function getMessages(req, res) {
   if (recipientId && groupId) {
     return res.status(400).json({ error: 'Specify either recipientId or groupId' });
   }
+
   if (!recipientId && !groupId) {
     return res.status(400).json({ error: 'Specify recipientId or groupId' });
   }
@@ -53,7 +49,6 @@ async function getMessages(req, res) {
   try {
     let messages;
     if (recipientId) {
-      // One-to-one messages between user and recipient
       messages = await prisma.message.findMany({
         where: {
           OR: [
@@ -65,7 +60,6 @@ async function getMessages(req, res) {
         include: { sender: true, recipient: true },
       });
     } else if (groupId) {
-      // Group messages
       messages = await prisma.message.findMany({
         where: { groupId },
         orderBy: { createdAt: 'asc' },

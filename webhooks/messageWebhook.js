@@ -46,7 +46,7 @@ function handleInsert(message, io) {
   console.log('Insert event:', message);
 
   if (message.recipientId) {
-    io.to(message.recipientId).emit('newMessage', message);
+    io.to(message.recipientId).emit('newMessage', message); // this is 'message.recipientId' the room name so the message will be sent any onw who posses this room or anyone in this room
   } else if (message.groupId) {
     io.to(`group:${message.groupId}`).emit('newMessage', message);
   }
@@ -56,8 +56,7 @@ function handleUpdate(message, io) {
   console.log('Update event:', message);
 
   if (message.recipientId) {
-    io.to(message.recipientId).emit('messageUpdated', message);
-  } else if (message.groupId) {
+    io.to(message.recipientId).emit('messageUpdated', message); 
     io.to(`group:${message.groupId}`).emit('messageUpdated', message);
   }
 }

@@ -22,15 +22,21 @@ const io = new Server(server, {
   cors: { origin: "*" }
 });
 
-app.set('io', io);
+app.set('io', io); // to set io instance in app for access in routes
 
-// Socket.IO setup
-io.on('connection', (socket) => {
+// Socket.IO connection handling 
+
+io.on('connection', (socket) => { // socket is the client(users browser or phone) and the io is main server that manages all the connections
   console.log('Socket connected:', socket.id);
 
-  socket.on('join', (room) => {
-    console.log(`Socket ${socket.id} joined room ${room}`);
-    socket.join(room);
+  socket.on('joinUser', (userId) => { // this will add the user in the room , this code will listen to the event when users login and sends this code by sending userId socket.emit("joinUser" , userId) join the room with their userId, the room is created by their userId so if the message is sent by the room name so that the room contains the user which joins the room 
+    socket.join(userId);
+    console.log(`Socket ${socket.id} joined user room ${userId}`);
+  });
+
+  socket.on('joinGroup', (groupId) => {
+    socket.join(groupId);
+    console.log(`Socket ${socket.id} joined group room: group: ${groupId}`);
   });
 
   socket.on('disconnect', () => {
