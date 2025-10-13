@@ -6,10 +6,10 @@ const Router = express.Router();
 
 Router.use(protect);
 
-Router.post('/', sendMessage);
-Router.get('/', getMessages);
-Router.patch('/:id', updateMessage); 
-Router.delete('/:id', deleteMessage);
-Router.patch('/markAsRead/:id/', markAsRead); 
+Router.post('/', protect ,  sendMessage);
+Router.get('/', protect ,getMessages);
+Router.patch('/:id', protect ,updateMessage); 
+Router.delete('/:id', protect ,deleteMessage);
+Router.patch('/markAsRead/:id/', protect ,markAsRead); 
 
 module.exports = Router;
