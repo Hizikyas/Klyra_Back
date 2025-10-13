@@ -19,7 +19,11 @@ if (process.env.SUPABASE_URL && (process.env.SUPABASE_SERVICE_ROLE_KEY || proces
 
 const server = http.createServer(app);
 const io = new Server(server, {
-  cors: { origin: "*" }
+  cors: {
+    origin: process.env.FRONTEND_URL || 'http://localhost:3000',
+    methods: ['GET', 'POST' , 'PUT' , 'DELETE' , 'PATCH'],
+    credentials: true,
+  }
 });
 
 app.set('io', io); // to set io instance in app for access in routes
@@ -35,8 +39,8 @@ io.on('connection', (socket) => { // socket is the client(users browser or phone
   });
 
   socket.on('joinGroup', (groupId) => {
-    socket.join(groupId);
-    console.log(`Socket ${socket.id} joined group room: group: ${groupId}`);
+    socket.join(`group:${groupId}`); // align with webhook emitter
+    console.log(`Socket ${socket.id} joined group room: group:${groupId}`);
   });
 
   socket.on('disconnect', () => {
