@@ -175,4 +175,76 @@ async function deleteMessage(req, res) {
   }
 }
 
-module.exports = { sendMessage, getMessages, updateMessage, deleteMessage , markAsRead };
+async function getConversations(req, res) {
+  const userId = req.user.id;
+
+  try {
+    // Get all unique users the current user has messaged with
+    const conversations = await prisma.message.findMany({
+      where: {
+        OR: [
+          { senderId: userId },
+          { recipientId: userId }
+        ]
+      },
+      include: {
+        sender: {
+          select: {
+            id: true,
+            username: true,
+            avatar: true
+          }
+        },
+        recipient: {
+          select: {
+            id: true,
+            username: true,
+            avatar: true
+          }
+        }
+      },
+      orderBy: { createdAt: 'desc' }
+    });
+
+    // Group by conversation partner and get latest message
+    const conversationMap = new Map();
+    
+    conversations.forEach(message => {
+      const partnerId = message.senderId === userId ? message.recipientId : message.senderId;
+      const partner = message.senderId === userId ? message.recipient : message.sender;
+      
+      if (!partnerId || !partner) return; // Skip if no partner or group messages
+      
+      if (!conversationMap.has(partnerId)) {
+        conversationMap.set(partnerId, {
+          participantId: partnerId,
+          participant: partner,
+          lastMessage: message,
+          unreadCount: 0
+        });
+      }
+    });
+
+    // Count unread messages for each conversation
+    for (const [partnerId, conv] of conversationMap) {
+      const unreadCount = await prisma.message.count({
+        where: {
+          senderId: partnerId,
+          recipientId: userId,
+          isRead: false
+        }
+      });
+      conv.unreadCount = unreadCount;
+    }
+
+    const result = Array.from(conversationMap.values())
+      .sort((a, b) => new Date(b.lastMessage.createdAt) - new Date(a.lastMessage.createdAt));
+
+    res.status(200).json({ conversations: result });
+  } catch (error) {
+    console.error('Error fetching conversations:', error);
+    res.status(500).json({ error: 'Failed to fetch conversations' });
+  }
+}
+
+module.exports = { sendMessage, getMessages, updateMessage, deleteMessage, markAsRead, getConversations };
