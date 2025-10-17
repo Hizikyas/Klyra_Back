@@ -43,17 +43,14 @@ function handleNewMessage(req, res, io) {
 // ===== Event Handlers =====
 
 function handleInsert(message, io) {
-  console.log('Insert event:', message);
-
   if (message.recipientId) {
-    io.to(message.recipientId).emit('newMessage', message); // this is 'message.recipientId' the room name so the message will be sent any onw who posses this room or anyone in this room
+    io.to(message.recipientId).emit('newMessage', message); // this is 'message.recipientId' the room name so the message will be sent any one who posses this room or anyone in this room
   } else if (message.groupId) {
     io.to(`group:${message.groupId}`).emit('newMessage', message);
   }
 }
 
 function handleUpdate(message, io) {
-  console.log('Update event:', message);
 
   if (message.recipientId) {
     io.to(message.recipientId).emit('messageUpdated', message); 
@@ -62,8 +59,6 @@ function handleUpdate(message, io) {
 }
 
 function handleDelete(oldMessage, io) {
-  console.log('Delete event:', oldMessage);
-
   if (oldMessage.recipientId) {
     io.to(oldMessage.recipientId).emit('messageDeleted', oldMessage.id);
   } else if (oldMessage.groupId) {

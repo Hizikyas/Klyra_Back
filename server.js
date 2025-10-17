@@ -35,12 +35,10 @@ io.on('connection', (socket) => { // socket is the client(users browser or phone
 
   socket.on('joinUser', (userId) => { // this will add the user in the room , this code will listen to the event when users login and sends this code by sending userId socket.emit("joinUser" , userId) join the room with their userId, the room is created by their userId so if the message is sent by the room name so that the room contains the user which joins the room 
     socket.join(userId);
-    console.log(`Socket ${socket.id} joined user room ${userId}`);
   });
 
   socket.on('joinGroup', (groupId) => {
     socket.join(`group:${groupId}`); // align with webhook emitter
-    console.log(`Socket ${socket.id} joined group room: group:${groupId}`);
   });
 
   socket.on('disconnect', () => {
