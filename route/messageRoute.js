@@ -1,5 +1,5 @@
 const express = require('express');
-const { sendMessage, getMessages, updateMessage, deleteMessage, markAsRead, getConversations } = require('../Controller/messageController');
+const { sendMessage, getMessages, updateMessage, deleteMessage, markAsRead, markMessagesAsRead, getConversations } = require('../Controller/messageController');
 const { protect } = require('../Controller/AuthenticationController'); 
 
 const Router = express.Router();
@@ -12,5 +12,6 @@ Router.get('/conversations', protect, getConversations);
 Router.patch('/:id', protect ,updateMessage); 
 Router.delete('/:id', protect ,deleteMessage);
 Router.patch('/markAsRead/:id/', protect ,markAsRead); 
+Router.post('/mark-read', protect , markMessagesAsRead);
 
 module.exports = Router;

@@ -175,6 +175,37 @@ async function deleteMessage(req, res) {
   }
 }
 
+async function markMessagesAsRead(req, res) {
+  const { recipientId } = req.body;
+  const userId = req.user.id;
+
+  if (!recipientId) {
+    return res.status(400).json({ error: 'recipientId is required' });
+  }
+
+  try {
+    // Mark all messages from the recipient as read
+    const result = await prisma.message.updateMany({
+      where: {
+        senderId: recipientId,
+        recipientId: userId,
+        isRead: false
+      },
+      data: {
+        isRead: true
+      }
+    });
+
+    res.status(200).json({ 
+      message: 'Messages marked as read',
+      updatedCount: result.count 
+    });
+  } catch (error) {
+    console.error('Error marking messages as read:', error);
+    res.status(500).json({ error: 'Failed to mark messages as read' });
+  }
+}
+
 async function getConversations(req, res) {
   const userId = req.user.id;
 
@@ -247,4 +278,4 @@ async function getConversations(req, res) {
   }
 }
 
-module.exports = { sendMessage, getMessages, updateMessage, deleteMessage, markAsRead, getConversations };
+module.exports = { sendMessage, getMessages, updateMessage, deleteMessage, markAsRead, markMessagesAsRead, getConversations };
