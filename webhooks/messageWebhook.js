@@ -51,10 +51,17 @@ function handleInsert(message, io) {
 }
 
 function handleUpdate(message, io) {
-
+  // Emit messageUpdated to recipient and group
   if (message.recipientId) {
-    io.to(message.recipientId).emit('messageUpdated', message); 
+    io.to(message.recipientId).emit('messageUpdated', message);
+  }
+  if (message.groupId) {
     io.to(`group:${message.groupId}`).emit('messageUpdated', message);
+  }
+
+  // If message is marked as read, notify the sender
+  if (message.isRead && message.senderId) {
+    io.to(message.senderId).emit('messageRead', { messageId: message.id, isRead: true });
   }
 }
 
