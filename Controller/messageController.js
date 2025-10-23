@@ -1,12 +1,22 @@
 // Controller/messageController.js
 const { PrismaClient } = require('@prisma/client');
 const prisma = new PrismaClient();
+const { createClient } = require('@supabase/supabase-js');
+
+let supabase = null;
+if (process.env.SUPABASE_URL && (process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.SUPABASE_ANON_KEY)) {
+  supabase = createClient(
+    process.env.SUPABASE_URL,
+    process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.SUPABASE_ANON_KEY
+  );
+}
+
 
 async function sendMessage(req, res) {
-  const { content, mediaUrl, recipientId, groupId } = req.body;
-  const senderId = req.user.id; // Assuming req.user is set by protect middleware
+  const { content, recipientId, groupId } = req.body;
+  const senderId = req.user.id;
 
-  if (!content && !mediaUrl) {
+  if (!content && !req.file) {
     return res.status(400).json({ error: 'Message must have content or media' });
   }
 
@@ -18,11 +28,46 @@ async function sendMessage(req, res) {
     return res.status(400).json({ error: 'Specify recipientId or groupId' });
   }
 
+  let mediaUrl = null;
+  let mediaType = null;
+
+  // ADDED: Handle media upload if file is provided (similar to avatar upload in auth)
+  if (req.file && supabase) {
+    try {
+      const fileExt = req.file.originalname.split('.').pop();
+      const fileName = `${Date.now()}_${Math.random().toString(36).substring(2, 15)}.${fileExt}`;
+      const filePath = `media/${fileName}`; // ADDED: Use 'messages' bucket (create it in Supabase)
+
+      const { data, error } = await supabase.storage
+        .from('messages')  // ADDED: Bucket name for chat media
+        .upload(filePath, req.file.buffer, {
+          contentType: req.file.mimetype,
+          upsert: false
+        });
+
+      if (error) {
+        console.error('Error uploading media:', error);
+        return res.status(500).json({ error: 'Failed to upload media' });
+      }
+
+      const { data: { publicUrl } } = supabase.storage
+        .from('messages')
+        .getPublicUrl(filePath);
+
+      mediaUrl = publicUrl;
+      mediaType = req.file.mimetype; // ADDED: Set MIME type (e.g., 'image/jpeg', 'application/pdf')
+    } catch (uploadError) {
+      console.error('Media upload error:', uploadError);
+      return res.status(500).json({ error: 'Failed to upload media' });
+    }
+  }
+
   try {
     const message = await prisma.message.create({
       data: {
-        content,
+        content: content || null,
         mediaUrl,
+        mediaType, // ADDED: Save MIME type
         senderId,
         recipientId: recipientId || null,
         groupId: groupId || null,

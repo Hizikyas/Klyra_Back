@@ -33,6 +33,7 @@ model Message {
   id           String   @id @default(cuid())
   content      String?
   mediaUrl     String?
+  mediaType    String?
   createdAt    DateTime @default(now()) 
   senderId     String
   sender       User     @relation("SentMessages", fields: [senderId], references: [id])
