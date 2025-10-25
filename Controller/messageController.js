@@ -39,7 +39,7 @@ async function sendMessage(req, res) {
       const filePath = `media/${fileName}`; // ADDED: Use 'messages' bucket (create it in Supabase)
 
       const { data, error } = await supabase.storage
-        .from('avatar')  // Use existing avatar bucket for media files
+        .from('messages')  // Use existing avatar bucket for media files
         .upload(filePath, req.file.buffer, {
           contentType: req.file.mimetype,
           upsert: false
@@ -51,7 +51,7 @@ async function sendMessage(req, res) {
       }
 
       const { data: { publicUrl } } = supabase.storage
-        .from('avatar')
+        .from('messages')
         .getPublicUrl(filePath);
 
       mediaUrl = publicUrl;
