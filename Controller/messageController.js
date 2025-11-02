@@ -13,7 +13,7 @@ if (process.env.SUPABASE_URL && (process.env.SUPABASE_SERVICE_ROLE_KEY || proces
 
 
 async function sendMessage(req, res) {
-  const { content, recipientId, groupId } = req.body;
+  const { content, recipientId, groupId, replyToId } = req.body;
   const senderId = req.user.id;
 
   if (!content && !req.file) {
@@ -71,6 +71,7 @@ async function sendMessage(req, res) {
         senderId,
         recipientId: recipientId || null,
         groupId: groupId || null,
+        replyToId: replyToId || null,
       },
     });
     res.status(201).json({ message });
@@ -94,24 +95,36 @@ async function getMessages(req, res) {
 
   try {
     let messages;
+    let conversationWhere = {};
     if (recipientId) {
-      messages = await prisma.message.findMany({
-        where: {
-          OR: [
-            { senderId: userId, recipientId },
-            { senderId: recipientId, recipientId: userId },
-          ],
-        },
-        orderBy: { createdAt: 'asc' },
-        include: { sender: true, recipient: true },
-      });
+      conversationWhere = {
+        OR: [
+          { senderId: userId, recipientId },
+          { senderId: recipientId, recipientId: userId },
+        ],
+      };
     } else if (groupId) {
-      messages = await prisma.message.findMany({
-        where: { groupId },
-        orderBy: { createdAt: 'asc' },
-        include: { sender: true, group: true },
-      });
+      conversationWhere = { groupId };
     }
+
+    messages = await prisma.message.findMany({
+      where: {
+        AND: [
+          conversationWhere,
+          { deletedMessages: { none: { userId } } },
+        ],
+      },
+      orderBy: { createdAt: 'asc' },
+      include: { 
+        sender: true, 
+        recipient: true,
+        replyTo: {
+          include: {
+            sender: true
+          }
+        } 
+      },
+    });
     res.status(200).json({ messages });
   } catch (error) {
     console.error('Error fetching messages:', error);
@@ -138,6 +151,10 @@ async function updateMessage(req, res) {
       return res.status(404).json({ error: 'Message not found' });
     }
 
+    if (message.isDeleted) {
+      return res.status(404).json({ error: 'Message not found' });
+    }
+
     // Only the sender can update content or media; anyone can mark as read
     if (message.senderId !== userId && isRead === undefined) {
       return res.status(403).json({ error: 'Unauthorized to update message content' });
@@ -149,6 +166,7 @@ async function updateMessage(req, res) {
         content: content || undefined,
         mediaUrl: mediaUrl || undefined,
         isRead: isRead !== undefined ? isRead : undefined,
+        isEdited: content ? true : undefined,
       },
     });
 
@@ -169,6 +187,10 @@ async function markAsRead(req, res) {
     });
 
     if (!message) {
+      return res.status(404).json({ error: 'Message not found' });
+    }
+
+    if (message.isDeleted) {
       return res.status(404).json({ error: 'Message not found' });
     }
 
@@ -194,6 +216,7 @@ async function markAsRead(req, res) {
 
 async function deleteMessage(req, res) {
   const { id } = req.params;
+  const { deleteForEveryone = false } = req.body;
   const userId = req.user.id;
 
   try {
@@ -205,13 +228,31 @@ async function deleteMessage(req, res) {
       return res.status(404).json({ error: 'Message not found' });
     }
 
-    if (message.senderId !== userId) {
-      return res.status(403).json({ error: 'Unauthorized to delete message' });
+    if (message.isDeleted) {
+      return res.status(404).json({ error: 'Message not found' });
     }
 
-    await prisma.message.delete({
-      where: { id },
-    });
+    if (deleteForEveryone && message.senderId !== userId) {
+      return res.status(403).json({ error: 'Unauthorized to delete for everyone' });
+    }
+
+    if (deleteForEveryone) {
+      await prisma.message.update({
+        where: { id },
+        data: {
+          isDeleted: true,
+          content: null,
+          mediaUrl: null,
+          mediaType: null,
+        },
+      });
+    } else {
+      await prisma.deletedMessage.upsert({
+        where: { userId_messageId: { userId, messageId: id } },
+        create: { userId, messageId: id },
+        update: {},
+      });
+    }
 
     res.status(200).json({ message: 'Message deleted successfully' });
   } catch (error) {
