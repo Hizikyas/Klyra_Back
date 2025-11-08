@@ -28,27 +28,38 @@ const io = new Server(server, {
 
 app.set('io', io); // to set io instance in app for access in routes
 
-// Socket.IO connection handling 
+// Socket.IO connection handling
+const connectedUsers = new Map(); // socket.id -> userId
+const onlineUsers = new Set(); // userId of online users
 
 io.on('connection', (socket) => { // socket is the client(users browser or phone) and the io is main server that manages all the connections
   console.log('Socket connected:', socket.id);
-  const connectedUsers = new Map();
   const userId = socket.handshake.auth?.userId || socket.handshake.query?.userId;
 
   if (userId) {
     connectedUsers.set(socket.id, userId);
     socket.join(userId);
 
-    // Emit to ALL clients: this user is online
-    io.emit('userOnline', { userId });
-    console.log(`User ${userId} is online`);
+    // Add to online users if not already
+    if (!onlineUsers.has(userId)) {
+      onlineUsers.add(userId);
+      // Emit to ALL clients: this user is online
+      io.emit('userOnline', { userId });
+      console.log(`User ${userId} is online`);
+    }
+
+    // Send current online users to the new client
+    socket.emit('onlineUsers', Array.from(onlineUsers));
   }
 
-  socket.on('joinUser', (userId) => { // this will add the user in the room , this code will listen to the event when users login and sends this code by sending userId socket.emit("joinUser" , userId) join the room with their userId, the room is created by their userId so if the message is sent by the room name so that the room contains the user which joins the room 
+  socket.on('joinUser', (userId) => { // this will add the user in the room , this code will listen to the event when users login and sends this code by sending userId socket.emit("joinUser" , userId) join the room with their userId, the room is created by their userId so if the message is sent by the room name so that the room contains the user which joins the room
     socket.join(userId);
     if (!connectedUsers.has(socket.id)) {
       connectedUsers.set(socket.id, userId);
-      io.emit('userOnline', { userId });
+      if (!onlineUsers.has(userId)) {
+        onlineUsers.add(userId);
+        io.emit('userOnline', { userId });
+      }
     }
   });
 
@@ -62,12 +73,24 @@ io.on('connection', (socket) => { // socket is the client(users browser or phone
     if (disconnectedUserId) {
       connectedUsers.delete(socket.id);
 
-      // Emit to ALL clients: user went offline + lastSeen
-      io.emit('userOffline', {
-        userId: disconnectedUserId,
-        lastSeen: new Date().toISOString(),
-      });
-      console.log(`User ${disconnectedUserId} is offline`);
+      // Check if user has other active connections
+      let hasOtherConnections = false;
+      for (const [sockId, uid] of connectedUsers) {
+        if (uid === disconnectedUserId) {
+          hasOtherConnections = true;
+          break;
+        }
+      }
+
+      // Only emit offline if no other connections
+      if (!hasOtherConnections) {
+        onlineUsers.delete(disconnectedUserId);
+        io.emit('userOffline', {
+          userId: disconnectedUserId,
+          lastSeen: new Date().toISOString(),
+        });
+        console.log(`User ${disconnectedUserId} is offline`);
+      }
     }
   });
 });
