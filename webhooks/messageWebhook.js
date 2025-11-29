@@ -1,16 +1,18 @@
 require('dotenv').config();
 
 function handleNewMessage(req, res, io) {
+  console.log('🔔 [WEBHOOK] Webhook received');
+  
   // Verify webhook secret
   const authHeader = req.headers.authorization;
   if (!authHeader || authHeader !== `Bearer ${process.env.WEBHOOK_SECRET}`) {
-    console.log('Invalid or missing webhook secret');
+    console.log('❌ [WEBHOOK] Invalid or missing webhook secret');
     return res.status(401).json({ error: 'Invalid webhook secret' });
   }
 
   // Supabase payload
   const payload = req.body;
-  console.log('Received webhook payload:', JSON.stringify(payload, null, 2));
+  console.log('📦 [WEBHOOK] Received webhook payload:', JSON.stringify(payload, null, 2));
 
   // Event type: INSERT, UPDATE, DELETE
   const eventType = payload.type;
@@ -43,10 +45,31 @@ function handleNewMessage(req, res, io) {
 // ===== Event Handlers =====
 
 function handleInsert(message, io) {
+  console.log('🔵 [WEBHOOK] handleInsert called with message:', {
+    id: message.id,
+    senderId: message.senderId,
+    recipientId: message.recipientId,
+    groupId: message.groupId,
+    content: message.content?.substring(0, 50)
+  });
+
   if (message.recipientId) {
-    io.to(message.recipientId).emit('newMessage', message); // this is 'message.recipientId' the room name so the message will be sent any one who posses this room or anyone in this room
+    // Emit to BOTH sender and recipient so both see the message in real-time
+    const senderId = String(message.senderId);
+    const recipientId = String(message.recipientId);
+    
+    console.log(`📤 [WEBHOOK] Emitting to recipient room: ${recipientId}`);
+    io.to(recipientId).emit('newMessage', message);
+    
+    console.log(`📤 [WEBHOOK] Emitting to sender room: ${senderId}`);
+    io.to(senderId).emit('newMessage', message);
+    
+    console.log('✅ [WEBHOOK] Message emitted to both sender and recipient');
   } else if (message.groupId) {
+    console.log(`📤 [WEBHOOK] Emitting to group: group:${message.groupId}`);
     io.to(`group:${message.groupId}`).emit('newMessage', message);
+  } else {
+    console.log('⚠️ [WEBHOOK] Message has no recipientId or groupId');
   }
 }
 

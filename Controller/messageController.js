@@ -73,7 +73,55 @@ async function sendMessage(req, res) {
         groupId: groupId || null,
         replyToId: replyToId || null,
       },
+      include: {
+        sender: {
+          select: {
+            id: true,
+            username: true,
+            fullname: true,
+            avatar: true
+          }
+        },
+        recipient: {
+          select: {
+            id: true,
+            username: true,
+            fullname: true,
+            avatar: true
+          }
+        },
+        replyTo: {
+          include: {
+            sender: {
+              select: {
+                username: true
+              }
+            }
+          }
+        }
+      },
     });
+
+    // Emit socket event directly as backup (webhook might not fire immediately)
+    const io = req.app.get('io');
+    if (io && message) {
+      console.log('📤 [CONTROLLER] Emitting message directly via socket');
+      const senderIdStr = String(message.senderId);
+      const recipientIdStr = String(message.recipientId);
+      
+      if (message.recipientId) {
+        console.log(`📤 [CONTROLLER] Emitting to recipient room: ${recipientIdStr}`);
+        io.to(recipientIdStr).emit('newMessage', message);
+        
+        console.log(`📤 [CONTROLLER] Emitting to sender room: ${senderIdStr}`);
+        io.to(senderIdStr).emit('newMessage', message);
+        
+        console.log('✅ [CONTROLLER] Message emitted to both rooms');
+      } else if (message.groupId) {
+        io.to(`group:${message.groupId}`).emit('newMessage', message);
+      }
+    }
+
     res.status(201).json({ message });
   } catch (error) {
     console.error('Error sending message:', error);
