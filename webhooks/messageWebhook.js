@@ -6,7 +6,6 @@ function handleNewMessage(req, res, io) {
   // Verify webhook secret
   const authHeader = req.headers.authorization;
   if (!authHeader || authHeader !== `Bearer ${process.env.WEBHOOK_SECRET}`) {
-    console.log('❌ [WEBHOOK] Invalid or missing webhook secret');
     return res.status(401).json({ error: 'Invalid webhook secret' });
   }
 
@@ -58,15 +57,12 @@ function handleInsert(message, io) {
     const senderId = String(message.senderId);
     const recipientId = String(message.recipientId);
     
-    console.log(`📤 [WEBHOOK] Emitting to recipient room: ${recipientId}`);
+    
     io.to(recipientId).emit('newMessage', message);
     
-    console.log(`📤 [WEBHOOK] Emitting to sender room: ${senderId}`);
-    io.to(senderId).emit('newMessage', message);
     
-    console.log('✅ [WEBHOOK] Message emitted to both sender and recipient');
+    io.to(senderId).emit('newMessage', message);
   } else if (message.groupId) {
-    console.log(`📤 [WEBHOOK] Emitting to group: group:${message.groupId}`);
     io.to(`group:${message.groupId}`).emit('newMessage', message);
   } else {
     console.log('⚠️ [WEBHOOK] Message has no recipientId or groupId');
