@@ -1,6 +1,7 @@
 const express = require('express') ;
 const cors = require('cors');
 const { PrismaClient } = require("@prisma/client");
+const groupRouter = require("./routes/groupRoute"); 
 // const prisma = new PrismaClient();
 
 const userRoute = require("./route/userRoute") ;
@@ -17,6 +18,7 @@ app.use(cors({
 }))
 app.use("/v1/users" , userRoute) ;
 app.use("/v1/messages" , messageRouter) ;
+app.use("/v1/groups", groupRouter); 
 
 // Webhook route - must be before 404 handler
 app.post('/webhook/message', (req, res) => {
