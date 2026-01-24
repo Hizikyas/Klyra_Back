@@ -31,15 +31,14 @@ async function sendMessage(req, res) {
   let mediaUrl = null;
   let mediaType = null;
 
-  // ADDED: Handle media upload if file is provided (similar to avatar upload in auth)
   if (req.file && supabase) {
     try {
       const fileExt = req.file.originalname.split('.').pop();
       const fileName = `${Date.now()}_${Math.random().toString(36).substring(2, 15)}.${fileExt}`;
-      const filePath = `media/${fileName}`; // ADDED: Use 'messages' bucket (create it in Supabase)
+      const filePath = `media/${fileName}`; 
 
       const { data, error } = await supabase.storage
-        .from('messages')  // Use existing avatar bucket for media files
+        .from('messages')  
         .upload(filePath, req.file.buffer, {
           contentType: req.file.mimetype,
           upsert: false
@@ -55,7 +54,7 @@ async function sendMessage(req, res) {
         .getPublicUrl(filePath);
 
       mediaUrl = publicUrl;
-      mediaType = req.file.mimetype; // ADDED: Set MIME type (e.g., 'image/jpeg', 'application/pdf')
+      mediaType = req.file.mimetype; 
     } catch (uploadError) {
       console.error('Media upload error:', uploadError);
       return res.status(500).json({ error: 'Failed to upload media' });
@@ -67,7 +66,7 @@ async function sendMessage(req, res) {
       data: {
         content: content || null,
         mediaUrl,
-        mediaType, // ADDED: Save MIME type
+        mediaType, 
         senderId,
         recipientId: recipientId || null,
         groupId: groupId || null,
