@@ -143,7 +143,6 @@ exports.login = async (req , res , next) => {
 
     }
     res.cookie('jwt', token, cookieOptions);
-   // Remove password from response
    user.password = undefined;
    
    res.status(200).json({
@@ -167,7 +166,6 @@ exports.protect = async (req, res, next) => {
     try {
         let token;
 
-        // Get token from header or cookie
         if (req.headers.authorization && req.headers.authorization.startsWith("Bearer")) {
             token = req.headers.authorization.split(" ")[1];
         } else if (req.cookies && req.cookies.jwt) {
@@ -203,7 +201,6 @@ exports.protect = async (req, res, next) => {
           });
         }
 
-        // Grant access to protected route
         req.user = currentUser;
         next();
     } catch (error) {
