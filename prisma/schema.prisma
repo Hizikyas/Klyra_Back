@@ -61,8 +61,14 @@ model GroupMember {
   groupId String
   group Group @relation(fields: [groupId], references: [id], onDelete: Cascade)
   isAdmin Boolean @default(false)
+  status GroupMemberStatus @default(ACTIVE)
   joinedAt DateTime @default(now())
   @@unique([userId, groupId])
+}
+
+enum GroupMemberStatus {
+  PENDING
+  ACTIVE
 }
 model Call {
   id String @id @default(cuid())

@@ -14,25 +14,73 @@ if (process.env.SUPABASE_URL && (process.env.SUPABASE_SERVICE_ROLE_KEY || proces
 // Create a new group
 exports.createGroup = async (req, res, next) => {
   try {
-    const { name, userIds } = req.body;
+    const { name } = req.body;
+    let { userIds } = req.body;
     const creatorId = req.user.id;
+
+    // `userIds` may come as a JSON string (multipart requests)
+    if (typeof userIds === "string") {
+      try {
+        userIds = JSON.parse(userIds);
+      } catch {
+        // fallback: allow comma-separated ids
+        userIds = userIds.split(",").map((s) => s.trim()).filter(Boolean);
+      }
+    }
+
+    let avatarUrl = null;
+    if (req.file) {
+      if (!supabase) {
+        return res.status(500).json({
+          status: "fail",
+          message: "Supabase is not configured for group avatar upload",
+        });
+      }
+
+      const fileExt = req.file.originalname.split(".").pop();
+      const fileName = `${Date.now()}_${Math.random().toString(36).substring(2, 15)}.${fileExt}`;
+      const filePath = `group-avatar/${fileName}`;
+
+      const { error } = await supabase.storage
+        .from("avatar")
+        .upload(filePath, req.file.buffer, {
+          contentType: req.file.mimetype,
+          upsert: false,
+        });
+
+      if (error) {
+        return res.status(500).json({
+          status: "fail",
+          message: `Failed to upload group avatar: ${error.message}`,
+        });
+      }
+
+      const { data: { publicUrl } } = supabase.storage
+        .from("avatar")
+        .getPublicUrl(filePath);
+
+      avatarUrl = publicUrl;
+    }
 
     // Create group
     const group = await prisma.group.create({
       data: {
         name,
+        avatar: avatarUrl,
         members: {
           create: [
             // Add creator as admin
             {
               userId: creatorId,
               isAdmin: true,
+              status: 'ACTIVE',
             },
             // Add other members
-            ...userIds.map(userId => ({
+            ...(Array.isArray(userIds) ? userIds : []).map(userId => ({
               userId,
               isAdmin: false,
-            }))
+              status: 'ACTIVE',
+            })),
           ]
         }
       },
@@ -193,6 +241,7 @@ exports.addMembers = async (req, res, next) => {
         groupId,
         userId,
         isAdmin: false,
+        status: 'PENDING',
       })),
       skipDuplicates: true,
     });
@@ -232,6 +281,123 @@ exports.addMembers = async (req, res, next) => {
   } catch (error) {
     res.status(400).json({
       status: "fail",
+      message: error.message,
+    });
+  }
+};
+
+// Invited member accepts group invitation
+exports.acceptGroupMemberInvitation = async (req, res, next) => {
+  try {
+    const groupId = req.params.id;
+    const userId = req.user.id;
+
+    const member = await prisma.groupMember.findFirst({
+      where: { groupId, userId, status: 'PENDING' },
+    });
+
+    if (!member) {
+      return res.status(404).json({
+        status: 'fail',
+        message: 'Invitation not found',
+      });
+    }
+
+    const updatedMember = await prisma.groupMember.update({
+      where: { userId_groupId: { userId, groupId } },
+      data: { status: 'ACTIVE' },
+    });
+
+    const updatedGroup = await prisma.group.findUnique({
+      where: { id: groupId },
+      include: {
+        members: {
+          include: {
+            user: {
+              select: {
+                id: true,
+                username: true,
+                fullname: true,
+                avatar: true,
+              },
+            },
+          },
+        },
+      },
+    });
+
+    const io = req.app.get('io');
+    io.to(`group:${groupId}`).emit('groupUpdated', {
+      groupId,
+      group: updatedGroup,
+      member: updatedMember,
+    });
+
+    res.status(200).json({
+      status: 'success',
+      group: updatedGroup,
+    });
+  } catch (error) {
+    res.status(400).json({
+      status: 'fail',
+      message: error.message,
+    });
+  }
+};
+
+// Invited member declines group invitation
+exports.declineGroupMemberInvitation = async (req, res, next) => {
+  try {
+    const groupId = req.params.id;
+    const userId = req.user.id;
+
+    const member = await prisma.groupMember.findFirst({
+      where: { groupId, userId, status: 'PENDING' },
+    });
+
+    if (!member) {
+      return res.status(404).json({
+        status: 'fail',
+        message: 'Invitation not found',
+      });
+    }
+
+    await prisma.groupMember.delete({
+      where: { userId_groupId: { userId, groupId } },
+    });
+
+    const updatedGroup = await prisma.group.findUnique({
+      where: { id: groupId },
+      include: {
+        members: {
+          include: {
+            user: {
+              select: {
+                id: true,
+                username: true,
+                fullname: true,
+                avatar: true,
+              },
+            },
+          },
+        },
+      },
+    });
+
+    const io = req.app.get('io');
+    io.to(`group:${groupId}`).emit('groupUpdated', {
+      groupId,
+      group: updatedGroup,
+    });
+
+    res.status(200).json({
+      status: 'success',
+      group: updatedGroup,
+      message: 'Invitation declined',
+    });
+  } catch (error) {
+    res.status(400).json({
+      status: 'fail',
       message: error.message,
     });
   }
@@ -373,6 +539,7 @@ exports.sendGroupMessage = async (req, res, next) => {
       where: {
         groupId,
         userId: senderId,
+        status: 'ACTIVE',
       }
     });
 
@@ -483,11 +650,8 @@ exports.updateGroup = async (req, res, next) => {
       const fileName = `${Date.now()}_${Math.random().toString(36).substring(2, 15)}.${fileExt}`;
       const filePath = `group-avatar/${fileName}`;
 
-      // Reuse the existing `avatar` bucket used for user avatars.
-      const bucket = process.env.SUPABASE_AVATAR_BUCKET || 'avatar';
-
       const { error } = await supabase.storage
-        .from(bucket)
+        .from('avatar')
         .upload(filePath, req.file.buffer, {
           contentType: req.file.mimetype,
           upsert: false,
@@ -501,7 +665,7 @@ exports.updateGroup = async (req, res, next) => {
       }
 
       const { data: { publicUrl } } = supabase.storage
-        .from(bucket)
+        .from('avatar')
         .getPublicUrl(filePath);
 
       updateData.avatar = publicUrl;

@@ -9,13 +9,20 @@ const router = express.Router();
 router.use(authController.protect);
 
 // Group routes
-router.post("/", groupController.createGroup);
+// Expects multipart/form-data:
+// - name: string
+// - userIds: array (sent as JSON string from frontend)
+// - avatar: image file (optional)
+router.post("/", upload.single("avatar"), groupController.createGroup);
 router.get("/", groupController.getUserGroups);
 
 router.get("/:id", groupController.getGroup);
 router.get("/:id/messages", groupController.getGroupMessages);
 router.post("/:id/members", groupController.addMembers);
 router.delete("/:id/members/:userId", groupController.removeMember);
+// Invited member consent
+router.post("/:id/members/accept", groupController.acceptGroupMemberInvitation);
+router.post("/:id/members/decline", groupController.declineGroupMemberInvitation);
 router.post("/:id/leave", groupController.leaveGroup);
 
 // Group messages
