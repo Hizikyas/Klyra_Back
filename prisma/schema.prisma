@@ -48,6 +48,7 @@ model Message {
 model Group {
   id String @id @default(cuid())
   name String
+  avatar String?
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
   messages Message[]

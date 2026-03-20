@@ -1,5 +1,15 @@
 const { PrismaClient } = require("@prisma/client");
 const prisma = new PrismaClient();
+const { createClient } = require('@supabase/supabase-js');
+
+// Initialize Supabase client (only if environment variables are set)
+let supabase = null;
+if (process.env.SUPABASE_URL && (process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.SUPABASE_ANON_KEY)) {
+  supabase = createClient(
+    process.env.SUPABASE_URL,
+    process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.SUPABASE_ANON_KEY
+  );
+}
 
 // Create a new group
 exports.createGroup = async (req, res, next) => {
@@ -423,6 +433,119 @@ exports.sendGroupMessage = async (req, res, next) => {
     res.status(201).json({
       status: "success",
       message,
+    });
+  } catch (error) {
+    res.status(400).json({
+      status: "fail",
+      message: error.message,
+    });
+  }
+};
+
+// Update group name + avatar (admin-only)
+exports.updateGroup = async (req, res, next) => {
+  try {
+    const groupId = req.params.id;
+    const userId = req.user.id;
+    const { name } = req.body;
+
+    // Only admins can update group details
+    const adminMember = await prisma.groupMember.findFirst({
+      where: {
+        groupId,
+        userId,
+        isAdmin: true,
+      },
+    });
+
+    if (!adminMember) {
+      return res.status(403).json({
+        status: "fail",
+        message: "Only admins can update group details",
+      });
+    }
+
+    const updateData = {};
+    if (typeof name === "string" && name.trim()) {
+      updateData.name = name.trim();
+    }
+
+    // Upload/replace group avatar if provided
+    if (req.file) {
+      if (!supabase) {
+        return res.status(500).json({
+          status: "fail",
+          message: "Supabase is not configured for avatar upload",
+        });
+      }
+
+      const fileExt = req.file.originalname.split('.').pop();
+      const fileName = `${Date.now()}_${Math.random().toString(36).substring(2, 15)}.${fileExt}`;
+      const filePath = `group-avatar/${fileName}`;
+
+      // Reuse the existing `avatar` bucket used for user avatars.
+      const bucket = process.env.SUPABASE_AVATAR_BUCKET || 'avatar';
+
+      const { error } = await supabase.storage
+        .from(bucket)
+        .upload(filePath, req.file.buffer, {
+          contentType: req.file.mimetype,
+          upsert: false,
+        });
+
+      if (error) {
+        return res.status(500).json({
+          status: "fail",
+          message: `Failed to upload avatar: ${error.message}`,
+        });
+      }
+
+      const { data: { publicUrl } } = supabase.storage
+        .from(bucket)
+        .getPublicUrl(filePath);
+
+      updateData.avatar = publicUrl;
+    }
+
+    if (Object.keys(updateData).length === 0) {
+      return res.status(400).json({
+        status: "fail",
+        message: "No updates provided",
+      });
+    }
+
+    const updatedGroup = await prisma.group.update({
+      where: { id: groupId },
+      data: {
+        ...updateData,
+        updatedAt: new Date(),
+      },
+      include: {
+        members: {
+          include: {
+            user: {
+              select: {
+                id: true,
+                username: true,
+                fullname: true,
+                avatar: true,
+              },
+            },
+          },
+        },
+      },
+    });
+
+    // Notify everyone currently viewing the group
+    const io = req.app.get('io');
+    io.to(`group:${groupId}`).emit('groupUpdated', {
+      groupId,
+      group: updatedGroup,
+    });
+
+    res.status(200).json({
+      status: "success",
+      group: updatedGroup,
     });
   } catch (error) {
     res.status(400).json({

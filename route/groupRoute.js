@@ -21,4 +21,10 @@ router.post("/:id/leave", groupController.leaveGroup);
 // Group messages
 router.post("/messages", upload.single('media'), groupController.sendGroupMessage);
 
+// Update group details (admin-only): name + avatar
+// Expects multipart/form-data:
+// - name: string
+// - avatar: image file
+router.patch("/:id", upload.single("avatar"), groupController.updateGroup);
+
 module.exports = router;
