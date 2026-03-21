@@ -19,8 +19,13 @@ const upload = multer({
       'text/plain'
     ];
 
-    const isAllowed = allowedTypes.some(type => file.mimetype.startsWith(type));
-    if (isAllowed) {
+    const mimeType = (file.mimetype || "").toLowerCase();
+    const originalName = (file.originalname || "").toLowerCase();
+
+    const isAllowedByMime = allowedTypes.some(type => mimeType.startsWith(type));
+    const isDocxOctetStream = mimeType === "application/octet-stream" && originalName.endsWith(".docx");
+
+    if (isAllowedByMime || isDocxOctetStream) {
       cb(null, true);
     } else {
       cb(new Error('Unsupported file type'), false);

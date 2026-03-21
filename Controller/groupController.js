@@ -552,7 +552,36 @@ exports.sendGroupMessage = async (req, res, next) => {
 
     let mediaUrl, mediaType;
     if (req.file) {
-      mediaUrl = `/uploads/${req.file.filename}`;
+      if (!supabase) {
+        return res.status(500).json({
+          status: "fail",
+          message: "Supabase is not configured for media upload",
+        });
+      }
+
+      const fileExt = req.file.originalname.split('.').pop();
+      const fileName = `${Date.now()}_${Math.random().toString(36).substring(2, 15)}.${fileExt}`;
+      const filePath = `media/${fileName}`;
+
+      const { error } = await supabase.storage
+        .from('messages')
+        .upload(filePath, req.file.buffer, {
+          contentType: req.file.mimetype,
+          upsert: false,
+        });
+
+      if (error) {
+        return res.status(500).json({
+          status: "fail",
+          message: `Failed to upload media: ${error.message}`,
+        });
+      }
+
+      const { data: { publicUrl } } = supabase.storage
+        .from('messages')
+        .getPublicUrl(filePath);
+
+      mediaUrl = `${publicUrl}?name=${encodeURIComponent(req.file.originalname || "File")}`;
       mediaType = req.file.mimetype;
     }
 

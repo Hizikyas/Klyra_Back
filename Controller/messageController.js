@@ -53,7 +53,8 @@ async function sendMessage(req, res) {
         .from('messages')
         .getPublicUrl(filePath);
 
-      mediaUrl = publicUrl;
+      const originalName = req.file.originalname || "File";
+      mediaUrl = `${publicUrl}?name=${encodeURIComponent(originalName)}`;
       mediaType = req.file.mimetype; 
     } catch (uploadError) {
       console.error('Media upload error:', uploadError);
