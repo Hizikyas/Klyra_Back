@@ -3,6 +3,7 @@ const { PrismaClient } = require("@prisma/client");
 const prisma = new PrismaClient();
 const jwt = require('jsonwebtoken');
 const { createClient } = require('@supabase/supabase-js');
+const sendEmail = require('../Utils/sendEmail');
 
 // Initialize Supabase client (only if environment variables are set)
 let supabase = null;
@@ -245,3 +246,74 @@ exports.logout = async (req, res, next) => {
         });
     }
 }
+
+exports.forgotPassword = async (req, res, next) => {
+    try {
+        const user = await prisma.user.findUnique({ where: { email: req.body.email } });
+        if (!user) {
+            return res.status(404).json({ status: "fail", message: "There is no user with this email address." });
+        }
+
+        const otp = Math.floor(100000 + Math.random() * 900000).toString();
+        const expires = new Date(Date.now() + 10 * 60 * 1000); 
+
+        await prisma.user.update({
+            where: { id: user.id },
+            data: {
+                resetPasswordOtp: otp,
+                resetPasswordExpires: expires
+            }
+        });
+
+        const message = `Your password reset OTP is ${otp}. It is valid for 10 minutes.\nIf you didn't forget your password, please ignore this email!`;
+        try {
+            await sendEmail({
+                email: user.email,
+                subject: 'Your password reset token (valid for 10 min)',
+                message
+            });
+            res.status(200).json({ status: "success", message: "Token sent to email!" });
+        } catch (err) {
+            await prisma.user.update({
+                where: { id: user.id },
+                data: { resetPasswordOtp: null, resetPasswordExpires: null }
+            });
+            return res.status(500).json({ status: "fail", message: "There was an error sending the email. Try again later!" });
+        }
+    } catch (error) {
+        res.status(400).json({ status: "fail", message: error.message });
+    }
+};
+
+exports.resetPassword = async (req, res, next) => {
+    try {
+        const { email, otp, password } = req.body;
+        const user = await prisma.user.findFirst({
+            where: {
+                email,
+                resetPasswordOtp: otp,
+                resetPasswordExpires: { gt: new Date() }
+            }
+        });
+
+        if (!user) {
+            return res.status(400).json({ status: "fail", message: "OTP is invalid or has expired" });
+        }
+
+        const hashedPassword = await bcrypt.hash(password, 12);
+        await prisma.user.update({
+            where: { id: user.id },
+            data: {
+                password: hashedPassword,
+                resetPasswordOtp: null,
+                resetPasswordExpires: null,
+                passwordChangedAt: new Date()
+            }
+        });
+
+        const token = jwt.sign({ id: user.id }, process.env.JWT_SECRET, { expiresIn: process.env.JWT_EXPIRE_IN });
+        res.status(200).json({ status: "success", token });
+    } catch (error) {
+        res.status(400).json({ status: "fail", message: error.message });
+    }
+};
