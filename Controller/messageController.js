@@ -482,6 +482,11 @@ async function forwardMessages(req, res) {
         id: { in: messageIds },
         isDeleted: false
       },
+      include: {
+        sender: {
+          select: { username: true, fullname: true }
+        }
+      },
       orderBy: { createdAt: 'asc' } 
     });
 
@@ -499,6 +504,8 @@ async function forwardMessages(req, res) {
             content: origMsg.content,
             mediaUrl: origMsg.mediaUrl,
             mediaType: origMsg.mediaType,
+            isForwarded: true,
+            forwardedFrom: origMsg.sender.fullname || origMsg.sender.username,
             senderId,
             recipientId: target.type === 'user' ? target.id : null,
             groupId: target.type === 'group' ? target.id : null,

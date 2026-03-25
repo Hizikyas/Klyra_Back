@@ -42,6 +42,8 @@ model Message {
   isRead Boolean @default(false)
   isEdited Boolean @default(false)
   isDeleted Boolean @default(false)
+  isForwarded Boolean @default(false)
+  forwardedFrom String?
   replyToId String?
   replyTo Message? @relation("Replies", fields: [replyToId], references: [id], onDelete: SetNull)
   replies Message[] @relation("Replies")
