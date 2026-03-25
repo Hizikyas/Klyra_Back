@@ -412,4 +412,122 @@ async function getConversations(req, res) {
   }
 }
 
-module.exports = { sendMessage, getMessages, updateMessage, deleteMessage, markAsRead, markMessagesAsRead, getConversations };
+async function deleteMessages(req, res) {
+  const { messageIds, deleteForEveryone = false } = req.body;
+  const userId = req.user.id;
+
+  if (!Array.isArray(messageIds) || messageIds.length === 0) {
+    return res.status(400).json({ error: 'No message IDs provided' });
+  }
+
+  try {
+    const messages = await prisma.message.findMany({
+      where: { id: { in: messageIds } },
+    });
+
+    if (messages.length === 0) {
+      return res.status(404).json({ error: 'Messages not found' });
+    }
+
+    if (deleteForEveryone) {
+      // Filter only messages sent by userId
+      const userMessageIds = messages.filter(m => m.senderId === userId && !m.isDeleted).map(m => m.id);
+      
+      if (userMessageIds.length > 0) {
+        await prisma.message.updateMany({
+          where: { id: { in: userMessageIds } },
+          data: {
+            isDeleted: true,
+            content: null,
+            mediaUrl: null,
+            mediaType: null,
+          },
+        });
+      }
+    } else {
+      // Create DeletedMessage records for the current user
+      const validMessageIds = messages.filter(m => !m.isDeleted).map(m => m.id);
+      
+      for (const msgId of validMessageIds) {
+        await prisma.deletedMessage.upsert({
+          where: { userId_messageId: { userId, messageId: msgId } },
+          create: { userId, messageId: msgId },
+          update: {},
+        });
+      }
+    }
+
+    res.status(200).json({ message: 'Messages deleted successfully' });
+  } catch (error) {
+    console.error('Error deleting multiple messages:', error);
+    res.status(500).json({ error: 'Failed to delete messages' });
+  }
+}
+
+async function forwardMessages(req, res) {
+  const { messageIds, forwardTo } = req.body; 
+  // forwardTo should be array of objects. Example: { type: 'user', id: '123' } or { type: 'group', id: '456' }
+  const senderId = req.user.id;
+
+  if (!Array.isArray(messageIds) || messageIds.length === 0) {
+    return res.status(400).json({ error: 'No message IDs provided' });
+  }
+  if (!Array.isArray(forwardTo) || forwardTo.length === 0) {
+    return res.status(400).json({ error: 'No recipients provided' });
+  }
+
+  try {
+    const originalMessages = await prisma.message.findMany({
+      where: {
+        id: { in: messageIds },
+        isDeleted: false
+      },
+      orderBy: { createdAt: 'asc' } 
+    });
+
+    if (originalMessages.length === 0) {
+      return res.status(404).json({ error: 'Messages not found' });
+    }
+
+    const io = req.app.get('io');
+    const createdMessages = [];
+
+    for (const target of forwardTo) {
+      for (const origMsg of originalMessages) {
+        const newMessage = await prisma.message.create({
+          data: {
+            content: origMsg.content,
+            mediaUrl: origMsg.mediaUrl,
+            mediaType: origMsg.mediaType,
+            senderId,
+            recipientId: target.type === 'user' ? target.id : null,
+            groupId: target.type === 'group' ? target.id : null,
+          },
+          include: {
+            sender: { select: { id: true, username: true, fullname: true, avatar: true } },
+            recipient: { select: { id: true, username: true, fullname: true, avatar: true } },
+            replyTo: { include: { sender: { select: { username: true } } } }
+          }
+        });
+
+        createdMessages.push(newMessage);
+
+        if (io) {
+          if (newMessage.recipientId) {
+             io.to(String(newMessage.recipientId)).emit('newMessage', newMessage);
+             io.to(String(newMessage.senderId)).emit('newMessage', newMessage);
+          } else if (newMessage.groupId) {
+             io.to(`group:${newMessage.groupId}`).emit('groupMessage', newMessage);
+          }
+        }
+      }
+    }
+
+    res.status(201).json({ messages: createdMessages });
+  } catch (error) {
+    console.error('Error forwarding messages:', error);
+    res.status(500).json({ error: 'Failed to forward messages' });
+  }
+}
+
+module.exports = { sendMessage, getMessages, updateMessage, deleteMessage, markAsRead, markMessagesAsRead, getConversations, deleteMessages, forwardMessages };
