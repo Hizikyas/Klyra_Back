@@ -2,7 +2,7 @@
   "name": "klyra_back",
   "version": "1.0.0",
   "description": "backend project for Klyra",
-  "main": "index.js",
+  "main": "server.js",
   "scripts": {
     "dev": "nodemon server.js",
     "start": "node server.js"

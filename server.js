@@ -96,8 +96,10 @@ io.on('connection', (socket) => { // socket is the client(users browser or phone
 });
 
 
-server.listen(4000, async () => {
-    console.log("App running on port 4000")
+const PORT = process.env.PORT || 4000;
+
+server.listen(PORT, async () => {
+  console.log(`App running on port ${PORT}`)
     try {
         await prisma.$connect();
         console.log("Database connected successfully");
