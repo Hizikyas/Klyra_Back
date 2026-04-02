@@ -1,6 +1,6 @@
 const { PrismaClient } = require("@prisma/client");
 const prisma = new PrismaClient();
-const AppFeatures = require("../utils/AppFeatures")
+const AppFeatures = require("../Utils/AppFeatures")
 
 exports.getAllUser = async (req, res, next) => {
   try {
