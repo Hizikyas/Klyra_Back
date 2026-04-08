@@ -8,11 +8,6 @@ const router = express.Router();
 // Protect all routes
 router.use(authController.protect);
 
-// Group routes
-// Expects multipart/form-data:
-// - name: string
-// - userIds: array (sent as JSON string from frontend)
-// - avatar: image file (optional)
 router.post("/", upload.single("avatar"), groupController.createGroup);
 router.get("/", groupController.getUserGroups);
 
@@ -28,10 +23,6 @@ router.post("/:id/leave", groupController.leaveGroup);
 // Group messages
 router.post("/messages", upload.single('media'), groupController.sendGroupMessage);
 
-// Update group details (admin-only): name + avatar
-// Expects multipart/form-data:
-// - name: string
-// - avatar: image file
 router.patch("/:id", upload.single("avatar"), groupController.updateGroup);
 
 module.exports = router;
