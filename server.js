@@ -24,6 +24,7 @@ const io = new Server(server, {
       const allowedOrigins = [
         'http://localhost:3000',
         'https://klyra-gk1740ufw-hizikyas-tamirus-projects.vercel.app',
+        'https://klyra-inky.vercel.app',
         process.env.FRONTEND_URL
       ].filter(Boolean);
 
